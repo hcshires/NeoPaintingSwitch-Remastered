@@ -1,0 +1,18 @@
+name: NeoPaintingSwitch
+version: ${project.version}
+main: org.projectdsm.neopaintingswitch.NeoPaintingSwitch
+api-version: 1.16
+prefix: NeoPaintingSwitch
+authors: [ HS_Orion ]
+description: Remastered version of Minecraft painting selector plugin
+depend:
+  - WorldGuard
+website: https://projectdsm.org
+permissions:
+  neopaintingswitch.*:
+    description: Wildcard option for comfort.
+    children:
+      neopaintingswitch.use: true
+  neopaintingswitch.use:
+    description: Allows the user to scroll through paintings.
+    default: op
