@@ -7,5 +7,5 @@ A remastered fork of arcvvolf's neoPaintingSwitch Minecraft Bukkit plugin
 
 ## Support
 
-### Original Bukkit Plugin by arcvvolf's:
+### Original Bukkit Plugin by arcvvolf:
 [https://dev.bukkit.org/projects/paintingswitch](https://dev.bukkit.org/projects/paintingswitch)
