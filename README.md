@@ -6,13 +6,13 @@ A remastered fork of arcvvolf's neoPaintingSwitch Minecraft Bukkit plugin
 ## Features & Usage
 Use NeoPaintingSwitch to more easily decorate your Minecraft server worlds with paintings. NeoPaintingSwitch allows players to switch between paintings far more easily than in vanilla Minecraft. Simply scroll between hotbar items to change the painting type after placing it on a surface, then right click to lock your choice. NeoPaintingSwitch will also remember your choice for future painting placement if the same painting is desired in multiple locations.
 
-- Place a painting on the wall.
+- Place a painting on the wall
 - Right click the painting, then scroll with the mousewheel up or down to transition through the available painting options
 - When the desired painting has been found, simply right click again or walk away from the painting. The plugin will then lock your painting choice on the surface
 - The plugin will automatically determine which paintings can fit the size of the surface, so some paintings might not be an option if the size of the surface is too small
 
 ## What has been updated?
-- Henry's remastered version includes native support for Spigot servers up to the latest version of Minecraft and is now built with Maven.
+- Henry's remastered version includes native support for Spigot servers up to the latest version of Minecraft and is now built with Maven
 - Several bugs have also been fixed such as an issue with NeoPaintingSwitch ignoring permission nodes
 - While the original version used a config file for debug and permission options, the remastered version does not, as it is no longer a necessary feature
 
