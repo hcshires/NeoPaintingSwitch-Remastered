@@ -1,12 +1,8 @@
-package org.projectdsm.neopaintingswitch;
+package org.projectdsm.neopaintingswitch.events;
 
 import org.bukkit.Art;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Painting;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -17,23 +13,26 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.util.BlockIterator;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
+import org.projectdsm.neopaintingswitch.Settings;
+import org.projectdsm.neopaintingswitch.SettingsList;
 
-import java.util.*;
+import java.util.Objects;
+import java.util.Set;
 
+/**
+ * Handles events between Player and Painting entity
+ */
 public class PlayerEvent implements Listener {
 
-    private final String usePermsNode = "neopaintingswitch.use";
-
     /**
-     * Whether the given player can modify a painting
+     * Whether the given player has sufficient permission to use NeoPaintingSwitch on paintings
      * @param player - the specified player
-     * @param e - the current painting
      * @return whether the given player can modify a painting
      */
-    private boolean canModifyPainting(Player player, Entity e) {
-        if (NeoPaintingSwitch.isUsePerms() && !player.hasPermission(usePermsNode)) {
+    private boolean canModifyPainting(Player player) {
+        final String usePermsNode = "neopaintingswitch.use";
+        if (!player.hasPermission(usePermsNode)) {
             return WorldGuardPlugin.inst().hasPermission(player,"worldguard.build.*") || WorldGuardPlugin.inst().hasPermission(player,"worldguard.region.bypass." + player.getWorld().getName().toLowerCase());
         }
 
@@ -52,28 +51,34 @@ public class PlayerEvent implements Listener {
 
         Player player = event.getPlayer();
 
-        if (player != null && player.hasPermission(usePermsNode)) {
+        if (player != null && canModifyPainting(player)) {
             Settings settings = SettingsList.getSettings(player.getName());
             if (settings.getPreviousPainting() != null && event.getEntity() instanceof Painting) {
                 Painting painting = (Painting) event.getEntity();
+
+                /* Place the user's previous painting, if they have one. If it doesn't fit, iterate through available art until one fits
+                *  For some reason, if none of the options in the array work, break and avoid an infinite loop
+                */
                 if (!painting.setArt(settings.getPreviousPainting().getArt())) {
                     Art[] art = Art.values();
-                    int count = new Random().nextInt(Art.values().length - 1);
-                    int tempCount = count;
-                    count--;
-                    if (count == -1) count = 0;
+                    int count = Art.values().length - 1;
+                    int origin = count;
                     while (!painting.setArt(art[count])) {
                         if (count == 0)
                             count = art.length - 1;
                         else
                             count--;
-                        if (count == tempCount) break;
+                        if (count == origin) break; // If no Art object can be placed with the Painting, break
                     }
                 }
             }
         }
     }
 
+    /**
+     * Handle when a player interacts with an existing, placed Painting
+     * @param event - the PlayerInteractEntity event with the Painting
+     */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
         if (event.isCancelled())
@@ -82,17 +87,18 @@ public class PlayerEvent implements Listener {
         Player player = event.getPlayer();
         Entity entity = event.getRightClicked();
 
-        if (event.getHand() == EquipmentSlot.HAND && entity instanceof Painting && player.hasPermission(usePermsNode)) {
-            if (canModifyPainting(player, entity)) {
+        if (event.getHand() == EquipmentSlot.HAND && entity instanceof Painting) {
+            if (canModifyPainting(player)) {
                 Set<String> keys = SettingsList.getSettingsList().keySet();
 
-                for(String playerName : keys) {
+                for (String playerName : keys) {
                     if (SettingsList.getSettings(playerName).getPainting() != null && SettingsList.getSettings(playerName).getPainting().getEntityId() == entity.getEntityId() && !playerName.equals(player.getName())) {
-                        player.sendMessage(playerName + ChatColor.RED + " is already editing this painting.");
+                        player.sendMessage(playerName + ChatColor.RED + " is already editing this painting");
                         return;
                     }
                 }
 
+                /* Cache current painting */
                 Settings settings = SettingsList.getSettings(player.getName());
                 settings.setBlock(player.getTargetBlock(null, 20));
                 settings.setPainting((Painting) entity);
@@ -104,16 +110,20 @@ public class PlayerEvent implements Listener {
                 }
                 else {
                     player.sendMessage(ChatColor.GREEN + "Scroll to change painting");
-                    settings.setClicked(true);
+                    settings.setClicked(true); // Painting has now been clicked
                 }
             }
             else {
-                player.sendMessage(ChatColor.RED + "This Painting is locked by worldguard.");
+                player.sendMessage(ChatColor.RED + "You do not have permission to edit this painting");
                 event.setCancelled(true);
             }
         }
     }
 
+    /**
+     * Handles if a Players moves a certain distance away from the current Painting while unlocked, then lock the Painting from further edits
+     * @param event - The PlayerMoveEvent
+     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerMove(PlayerMoveEvent event) {
         if (event.isCancelled())
@@ -121,6 +131,7 @@ public class PlayerEvent implements Listener {
 
         Player player = event.getPlayer();
         Settings settings = SettingsList.getSettings(player.getName());
+
         try {
             if (settings.getBlock() != null && settings.getLocation() != null && settings.isClicked() && hasPlayerMovedSignificantly(event)) {
                 player.sendMessage(ChatColor.RED + "Painting locked");
@@ -131,6 +142,10 @@ public class PlayerEvent implements Listener {
         }
     }
 
+    /**
+     * Handles when a Player scrolls through the hotbar to change a Painting
+     * @param event - The PlayerItemHeldEvent
+     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onItemHeldChange(PlayerItemHeldEvent event) {
         Player player = event.getPlayer();
@@ -138,143 +153,129 @@ public class PlayerEvent implements Listener {
         int previousSlot = event.getPreviousSlot();
         int newSlot = event.getNewSlot();
         boolean reverse = (previousSlot - newSlot) > 0;
+
+        /* Account for switching between slot 0 and 8 or slot 8 and 0 */
         if (((previousSlot == 0) && (newSlot == 8)) || ((previousSlot == 8) && (newSlot == 0))) {
             reverse = !reverse;
         }
-        if (settings.isClicked() && settings.getPainting() != null && settings.getBlock() != null && !reverse) {
+
+        /* Scroll to change painting */
+        if (settings.isClicked() && settings.getPainting() != null && settings.getBlock() != null) {
             Painting painting = settings.getPainting();
             Art[] art = Art.values();
             int currentID = painting.getArt().ordinal();
-            if (currentID == art.length - 1) {
-                int count = 0;
-                while (!painting.setArt(art[count])) {
-                    if (count == art.length - 1) break;
-                    count++;
-                }
-            }
-            else {
-                int count = painting.getArt().ordinal();
-                int tempCount = count;
-                count++;
-                while (!painting.setArt(art[count])) {
-                    if (count == art.length - 1)
-                        count = 0;
-                    else
+
+            /* If scrolling forward */
+            if (!reverse) {
+                if (currentID == art.length - 1) {
+                    int count = 0;
+                    while (!painting.setArt(art[count])) {
+                        if (count == art.length - 1) break;
                         count++;
-                    if (count == tempCount) break;
+                    }
+                }
+                else {
+                    int count = painting.getArt().ordinal();
+                    int tempCount = count;
+                    count++;
+                    while (!painting.setArt(art[count])) {
+                        if (count == art.length - 1)
+                            count = 0;
+                        else
+                            count++;
+                        if (count == tempCount) break;
+                    }
                 }
             }
-            settings.setPreviousPainting(painting);
-        }
-        else if (settings.isClicked() && settings.getPainting() != null && settings.getBlock() != null) {
-            Painting painting = settings.getPainting();
-            Art[] art = Art.values();
-            int currentID = painting.getArt().ordinal();
-            if (currentID == 0) {
-                int count = art.length - 1;
-                while (!painting.setArt(art[count])) {
-                    count--;
-                    if (count == 0) break;
-                }
-            }
-            else {
-                int count = painting.getArt().ordinal();
-                int tempCount = count;
-                count--;
-                while (!painting.setArt(art[count])) {
-                    if (count == 0)
-                        count = art.length - 1;
-                    else
+
+            /* If scrolling backward */
+            else  {
+                if (currentID == 0) {
+                    int count = art.length - 1;
+                    while (!painting.setArt(art[count])) {
                         count--;
-                    if (count == tempCount) break;
+                        if (count == 0) break;
+                    }
+                }
+                else {
+                    int count = painting.getArt().ordinal();
+                    int tempCount = count;
+                    count--;
+                    while (!painting.setArt(art[count])) {
+                        if (count == 0)
+                            count = art.length - 1;
+                        else
+                            count--;
+                        if (count == tempCount) break;
+                    }
                 }
             }
             settings.setPreviousPainting(painting);
         }
     }
 
+    /**
+     * Returns if the player has moved enough distance from the Painting placement Block to lock the painting and prevent further unintentional edits
+     * @param event - A PlayerMoveEvent
+     * @return true if the Player has moved a set distance away, false otherwise
+     */
     private boolean hasPlayerMovedSignificantly(PlayerMoveEvent event) {
         Player player = event.getPlayer();
         Settings settings = SettingsList.getSettings(player.getName());
         int oldPlayerPosX = Math.abs(settings.getLocation().getBlockX() + 100);
         int oldPlayerPosY = Math.abs(settings.getLocation().getBlockY() + 100);
         int oldPlayerPosZ = Math.abs(settings.getLocation().getBlockZ() + 100);
-        int newPlayerPosX = Math.abs(event.getTo().getBlockX() + 100);
+        int newPlayerPosX = Math.abs(Objects.requireNonNull(event.getTo()).getBlockX() + 100);
         int newPlayerPosY = Math.abs(event.getTo().getBlockY() + 100);
         int newPlayerPosZ = Math.abs(event.getTo().getBlockZ() + 100);
-        if (oldPlayerPosX < newPlayerPosX) {
+
+        /* If player moved further than original coordinate, swap the old coordinate */
+        if (newPlayerPosX > oldPlayerPosX) {
             int temp = oldPlayerPosX;
             oldPlayerPosX = newPlayerPosX;
             newPlayerPosX = temp;
         }
-        if (oldPlayerPosY < newPlayerPosY) {
+        if (newPlayerPosY > oldPlayerPosY) {
             int temp = oldPlayerPosY;
             oldPlayerPosY = newPlayerPosY;
             newPlayerPosY = temp;
         }
-        if (oldPlayerPosZ < newPlayerPosZ) {
+        if (newPlayerPosZ > oldPlayerPosZ) {
             int temp = oldPlayerPosZ;
             oldPlayerPosZ = newPlayerPosZ;
             newPlayerPosZ = temp;
         }
+
+        /* Pitch and Yaw differences */
         int oldPlayerYaw = (int) Math.abs(settings.getLocation().getYaw());
         int newPlayerYaw = (int) Math.abs(player.getLocation().getYaw());
         int oldPlayerPitch = (int) settings.getLocation().getPitch();
         int newPlayerPitch = (int) player.getLocation().getPitch();
-        if (hasYawChangedSignificantly(oldPlayerYaw, newPlayerYaw) || hasPitchChangedSignificantly(oldPlayerPitch, newPlayerPitch)) {
-            //if (!settings.block.equals(player.getTargetBlock(null, 15))) { return true; } //TODO
-            if (!settings.getBlock().equals(getTargetBlock(player, null, 15))) { return true; }
+
+        boolean hasYawChanged = hasYawChangedSignificantly(oldPlayerYaw, newPlayerYaw);
+        boolean hasPitchChanged = hasPitchChangedSignificantly(oldPlayerPitch, newPlayerPitch);
+        // -X or +X direction
+        boolean hasXDirectionChanged = ((newPlayerYaw <= 315 && newPlayerYaw >= 225) || (newPlayerYaw <= 135 && newPlayerYaw >= 45)) &&
+                ((oldPlayerPosX % newPlayerPosX > 7) || (oldPlayerPosY % newPlayerPosY > 2) || (oldPlayerPosZ % newPlayerPosZ > 2));
+        // -Z or +Z direction
+        boolean hasZDirectionChanged = ((newPlayerYaw < 45 || newPlayerYaw > 315) || (newPlayerYaw < 225 && newPlayerYaw > 135)) &&
+                ((oldPlayerPosX % newPlayerPosX > 2) || (oldPlayerPosY % newPlayerPosY > 2) || (oldPlayerPosZ % newPlayerPosZ > 7));
+
+        if ((hasYawChanged || hasPitchChanged) || hasXDirectionChanged || hasZDirectionChanged) {
+            return !settings.getBlock().equals(player.getTargetBlock(null, 15));
         }
-        if (((newPlayerYaw <= 315 && newPlayerYaw >= 225) || (newPlayerYaw <= 135 && newPlayerYaw >= 45)) &&
-                ((oldPlayerPosX % newPlayerPosX > 7) || (oldPlayerPosY % newPlayerPosY > 2) || (oldPlayerPosZ % newPlayerPosZ > 2))) { // -X or +X direction
-            //if (!settings.block.equals(player.getTargetBlock(null, 15))) { return true; } //TODO
-            if (!settings.getBlock().equals(getTargetBlock(player, null, 15))) { return true; }
-        }
-        if (((newPlayerYaw < 45 || newPlayerYaw > 315) || (newPlayerYaw < 225 && newPlayerYaw > 135)) &&
-                ((oldPlayerPosX % newPlayerPosX > 2) || (oldPlayerPosY % newPlayerPosY > 2) || (oldPlayerPosZ % newPlayerPosZ > 7))) { // -Z or +Z direction
-            //if (!settings.block.equals(player.getTargetBlock(null, 15))) { return true; } //TODO
-            return !settings.getBlock().equals(getTargetBlock(player, null, 15));
-        }
+
         return false;
     }
 
     /**
-     * Gets the block that the living entity has targeted.
-     *
-     * @param entity
-     *            this is the entity to get target block
-     * @param transparent
-     *            HashSet containing all transparent block Materials (set to
-     *            null for only air)
-     * @param maxDistance
-     *            this is the maximum distance to scan (may be limited by server
-     *            by at least 100 blocks, no less)
-     * @return block that the living entity has targeted
+     * Return whether the Player's pitch has changed an amount determined by the method
+     * @param oldPlayerPitch - the original pitch of the Player
+     * @param newPlayerPitch - the current pitch of the Player
+     * @return true if the Pitch has changed a set distance, false otherwise
      */
-    private Block getTargetBlock(LivingEntity entity, HashSet<Material> transparent, int maxDistance) {
-        Block target = entity.getEyeLocation().getBlock();
-        Location eyeLoc = entity.getEyeLocation();
-        if (transparent == null){
-            transparent = new HashSet<Material>();
-            transparent.add(Material.AIR);
-        }
-        try {
-            BlockIterator lineOfSight = new BlockIterator(entity.getWorld(), eyeLoc.toVector(), entity.getLocation().getDirection(), 0, maxDistance);
-            while (lineOfSight.hasNext()) {
-                Block toTest = lineOfSight.next();
-                if (!transparent.contains(toTest.getType()))
-                    return target;
-                else
-                    target = toTest;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return target;
-    }
-
     private boolean hasPitchChangedSignificantly(int oldPlayerPitch, int newPlayerPitch) {
-        if (oldPlayerPitch < newPlayerPitch) {
+        if (newPlayerPitch > oldPlayerPitch) {
             int temp = oldPlayerPitch;
             oldPlayerPitch = newPlayerPitch;
             newPlayerPitch = temp;
@@ -282,6 +283,12 @@ public class PlayerEvent implements Listener {
         return (oldPlayerPitch - newPlayerPitch) > 30;
     }
 
+    /**
+     * Return whether the Player's yaw has changed an amount determined by the method
+     * @param oldYaw - the original yaw of the Player
+     * @param newYaw - the current yaw of the Player
+     * @return true if the Pitch has changed a set distance, false otherwise
+     */
     private boolean hasYawChangedSignificantly(int oldYaw, int newYaw) {
         oldYaw = Math.abs(oldYaw) + 360;
         newYaw = Math.abs(newYaw) + 360;
