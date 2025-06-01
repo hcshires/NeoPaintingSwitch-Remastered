@@ -28,18 +28,21 @@ import java.util.Set;
  */
 public class PlayerEvent implements Listener {
 
-    /** Available Art to iterate over **/
+    /**
+     * Available Art to iterate over
+     **/
     Registry<Art> artRegistry = Bukkit.getRegistry(Art.class);
 
     /**
      * Whether the given player has sufficient permission to use NeoPaintingSwitch on paintings
+     *
      * @param player - the specified player
      * @return whether the given player can modify a painting
      */
     private boolean canModifyPainting(Player player) {
         final String usePermsNode = "neopaintingswitch.use";
         if (!player.hasPermission(usePermsNode)) {
-            return WorldGuardPlugin.inst().hasPermission(player,"worldguard.build.*") || WorldGuardPlugin.inst().hasPermission(player,"worldguard.region.bypass." + player.getWorld().getName().toLowerCase());
+            return (Bukkit.getServer().getPluginManager().getPlugin("WorldGuard") != null) && (WorldGuardPlugin.inst().hasPermission(player, "worldguard.build.*") || WorldGuardPlugin.inst().hasPermission(player, "worldguard.region.bypass." + player.getWorld().getName().toLowerCase()));
         }
 
         return true;
@@ -47,6 +50,7 @@ public class PlayerEvent implements Listener {
 
     /**
      * When a user places a painting, remember the user's last used painting and select that as the current painting
+     *
      * @param event - the specified hanging place event
      */
     @EventHandler(priority = EventPriority.MONITOR)
@@ -59,8 +63,7 @@ public class PlayerEvent implements Listener {
 
         if (player != null && canModifyPainting(player)) {
             Settings settings = SettingsList.getSettings(player.getName());
-            if (settings.getPreviousPainting() != null && event.getEntity() instanceof Painting) {
-                Painting painting = (Painting) event.getEntity();
+            if (settings.getPreviousPainting() != null && event.getEntity() instanceof Painting painting) {
 
                 /* Place the user's previous painting, if they have one.
                 If it doesn't fit, iterate through available art until one fits */
@@ -75,6 +78,7 @@ public class PlayerEvent implements Listener {
 
     /**
      * Handle when a player interacts with an existing, placed Painting
+     *
      * @param event - the PlayerInteractEntity event with the Painting
      */
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -105,13 +109,11 @@ public class PlayerEvent implements Listener {
                 if (settings.isClicked()) {
                     player.sendMessage(ChatColor.RED + "Painting locked");
                     SettingsList.clear(player.getName());
-                }
-                else {
+                } else {
                     player.sendMessage(ChatColor.GREEN + "Scroll to change painting");
                     settings.setClicked(true); // Painting has now been clicked
                 }
-            }
-            else {
+            } else {
                 player.sendMessage(ChatColor.RED + "You do not have permission to edit this painting");
                 event.setCancelled(true);
             }
@@ -120,6 +122,7 @@ public class PlayerEvent implements Listener {
 
     /**
      * Handles if a Players moves a certain distance away from the current Painting while unlocked, then lock the Painting from further edits
+     *
      * @param event - The PlayerMoveEvent
      */
     @EventHandler(priority = EventPriority.MONITOR)
@@ -142,6 +145,7 @@ public class PlayerEvent implements Listener {
 
     /**
      * Handles when a Player scrolls through the hotbar to change a Painting
+     *
      * @param event - The PlayerItemHeldEvent
      */
     @EventHandler(priority = EventPriority.MONITOR)
@@ -187,6 +191,7 @@ public class PlayerEvent implements Listener {
 
     /**
      * Returns if the player has moved enough distance from the Painting placement Block to lock the painting and prevent further unintentional edits
+     *
      * @param event - A PlayerMoveEvent
      * @return true if the Player has moved a set distance away, false otherwise
      */
@@ -241,6 +246,7 @@ public class PlayerEvent implements Listener {
 
     /**
      * Return whether the Player's pitch has changed an amount determined by the method
+     *
      * @param oldPlayerPitch - the original pitch of the Player
      * @param newPlayerPitch - the current pitch of the Player
      * @return true if the Pitch has changed a set distance, false otherwise
@@ -256,6 +262,7 @@ public class PlayerEvent implements Listener {
 
     /**
      * Return whether the Player's yaw has changed an amount determined by the method
+     *
      * @param oldYaw - the original yaw of the Player
      * @param newYaw - the current yaw of the Player
      * @return true if the Pitch has changed a set distance, false otherwise

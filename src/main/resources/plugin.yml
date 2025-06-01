@@ -5,7 +5,7 @@ api-version: 1.16
 prefix: NeoPaintingSwitch
 authors: [ HS_Orion ]
 description: Remastered version of Minecraft painting selector plugin
-depend:
+softdepend:
   - WorldGuard
 website: https://projectdsm.org
 permissions:
