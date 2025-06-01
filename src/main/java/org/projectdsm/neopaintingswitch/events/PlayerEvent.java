@@ -1,7 +1,9 @@
 package org.projectdsm.neopaintingswitch.events;
 
 import org.bukkit.Art;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Registry;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Painting;
 import org.bukkit.entity.Player;
@@ -17,6 +19,7 @@ import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import org.projectdsm.neopaintingswitch.Settings;
 import org.projectdsm.neopaintingswitch.SettingsList;
 
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Set;
 
@@ -24,6 +27,9 @@ import java.util.Set;
  * Handles events between Player and Painting entity
  */
 public class PlayerEvent implements Listener {
+
+    /** Available Art to iterate over **/
+    Registry<Art> artRegistry = Bukkit.getRegistry(Art.class);
 
     /**
      * Whether the given player has sufficient permission to use NeoPaintingSwitch on paintings
@@ -56,19 +62,11 @@ public class PlayerEvent implements Listener {
             if (settings.getPreviousPainting() != null && event.getEntity() instanceof Painting) {
                 Painting painting = (Painting) event.getEntity();
 
-                /* Place the user's previous painting, if they have one. If it doesn't fit, iterate through available art until one fits
-                *  For some reason, if none of the options in the array work, break and avoid an infinite loop
-                */
+                /* Place the user's previous painting, if they have one.
+                If it doesn't fit, iterate through available art until one fits */
                 if (!painting.setArt(settings.getPreviousPainting().getArt())) {
-                    Art[] art = Art.values();
-                    int count = Art.values().length - 1;
-                    int origin = count;
-                    while (!painting.setArt(art[count])) {
-                        if (count == 0)
-                            count = art.length - 1;
-                        else
-                            count--;
-                        if (count == origin) break; // If no Art object can be placed with the Painting, break
+                    for (Art a : artRegistry) {
+                        if (painting.setArt(a)) break;
                     }
                 }
             }
@@ -162,54 +160,27 @@ public class PlayerEvent implements Listener {
         /* Scroll to change painting */
         if (settings.isClicked() && settings.getPainting() != null && settings.getBlock() != null) {
             Painting painting = settings.getPainting();
-            Art[] art = Art.values();
-            int currentID = painting.getArt().ordinal();
+            Art currentArt = painting.getArt();
 
-            /* If scrolling forward */
-            if (!reverse) {
-                if (currentID == art.length - 1) {
-                    int count = 0;
-                    while (!painting.setArt(art[count])) {
-                        if (count == art.length - 1) break;
-                        count++;
-                    }
-                }
-                else {
-                    int count = painting.getArt().ordinal();
-                    int tempCount = count;
-                    count++;
-                    while (!painting.setArt(art[count])) {
-                        if (count == art.length - 1)
-                            count = 0;
-                        else
-                            count++;
-                        if (count == tempCount) break;
-                    }
-                }
+            /* Find the current art within the list of options */
+            ArrayList<Art> artList = new ArrayList<>();
+            for (Art art : artRegistry) {
+                artList.add(art);
             }
 
-            /* If scrolling backward */
-            else  {
-                if (currentID == 0) {
-                    int count = art.length - 1;
-                    while (!painting.setArt(art[count])) {
-                        count--;
-                        if (count == 0) break;
-                    }
+            /* Set iteration direction based on scroll and loop until next compatible painting */
+            int startIndex = artList.indexOf(currentArt);
+            int i = startIndex;
+            int listSize = artList.size();
+            int step = reverse ? -1 : 1;
+
+            do {
+                i = (i + step + listSize) % listSize; // Wrap around if edges are reached
+
+                if (painting.setArt(artList.get(i))) {
+                    break;
                 }
-                else {
-                    int count = painting.getArt().ordinal();
-                    int tempCount = count;
-                    count--;
-                    while (!painting.setArt(art[count])) {
-                        if (count == 0)
-                            count = art.length - 1;
-                        else
-                            count--;
-                        if (count == tempCount) break;
-                    }
-                }
-            }
+            } while (i != startIndex);
             settings.setPreviousPainting(painting);
         }
     }
